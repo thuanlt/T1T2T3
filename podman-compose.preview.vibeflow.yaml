@@ -1,0 +1,17 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.preview.vibeflow
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.preview
+    environment:
+      DB_PATH: ${DB_PATH:-data/agent.db}
+      KB_DIR: ${KB_DIR:-kb}
+    volumes:
+      - app-data:/app/data
+
+volumes:
+  app-data:

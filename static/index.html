@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FPT AI Factory · Support Console</title>
+<style>
+  :root {
+    --ink: #0c1526;
+    --navy: #13233f;
+    --navy-2: #1b3054;
+    --red: #e4002b;
+    --red-dark: #b80023;
+    --bg: #f2f4f7;
+    --surface: #ffffff;
+    --line: #e2e7ee;
+    --text: #1a2433;
+    --muted: #5c6b80;
+    --ok: #0e8a5f;
+    --warn: #b7791f;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(12,21,38,.06), 0 8px 24px rgba(12,21,38,.08);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --chat-bg: #0d1830;
+    --chat-card: #16263f;
+    --chat-card-user: #1d3a63;
+    --chat-text: #dbe4f0;
+    --chat-muted: #8fa2bd;
+    --chat-line: rgba(255,255,255,.1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.55;
+  }
+  button { font: inherit; cursor: pointer; }
+  ::selection { background: rgba(228,0,43,.18); }
+
+  /* ---------- Layout ---------- */
+  .shell { display: grid; grid-template-columns: 300px 1fr 280px; grid-template-rows: 170px 1fr; height: 100vh; overflow: hidden; transition: grid-template-columns .25s ease; }
+  .shell.no-left { grid-template-columns: 0 1fr 280px; }
+  .shell.no-right { grid-template-columns: 300px 1fr 0; }
+  .shell.no-left.no-right { grid-template-columns: 0 1fr 0; }
+  .sidebar, .inspector { min-width: 0; overflow: hidden; }
+  .shell.no-left .sidebar, .shell.no-right .inspector { border: none; }
+  @media (max-width: 980px) { .shell { grid-template-columns: 1fr; } .sidebar, .inspector { display: none; } }
+
+  /* ---------- Header ---------- */
+  .topbar {
+    grid-column: 1 / -1; display: flex; align-items: center; gap: 14px;
+    background: var(--ink) url("/static/banner.png") center / cover no-repeat;
+    color: #fff; padding: 0 20px; height: 170px; z-index: 5; position: relative;
+  }
+  .topbar::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(90deg, rgba(12,21,38,.82) 0%, rgba(12,21,38,.45) 45%, rgba(12,21,38,.15) 100%);
+  }
+  .topbar > * { position: relative; z-index: 1; }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 650; letter-spacing: .2px; }
+  .brand-logo { height: 30px; width: auto; display: block; background: #fff; padding: 4px 10px; border-radius: 8px; }
+  .brand-sub { font-weight: 450; color: #9fb0c9; font-size: 11px; letter-spacing: .6px; text-transform: uppercase; border-left: 1px solid rgba(255,255,255,.18); padding-left: 12px; }
+  .brand small { display: block; font-weight: 450; color: #9fb0c9; font-size: 11px; letter-spacing: .6px; text-transform: uppercase; }
+  .topbar .spacer { flex: 1; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+    background: rgba(255,255,255,.09); color: #cfd9e8; font-size: 12px; border: 1px solid rgba(255,255,255,.12);
+  }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+  .pill.off .dot { background: var(--warn); }
+  .icon-btn {
+    background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.14); color: #cfd9e8;
+    border-radius: 8px; width: 30px; height: 30px; font-size: 13px; display: grid; place-items: center;
+    transition: all .15s; line-height: 1;
+  }
+  .icon-btn:hover { border-color: var(--red); color: #fff; background: rgba(228,0,43,.2); }
+  .icon-btn.active { color: var(--red); border-color: var(--red); }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    background: var(--ink); border-right: 1px solid rgba(255,255,255,.06);
+    display: flex; flex-direction: column; overflow: hidden; position: relative;
+  }
+  .sidebar::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 2;
+    background: linear-gradient(90deg, var(--red), rgba(228,0,43,.15) 60%, transparent);
+  }
+  .side-head { padding: 20px 18px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .side-title {
+    font-size: 12px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: #cfd9e8;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .side-title::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--red); box-shadow: 0 0 8px rgba(228,0,43,.6); }
+  .ticket-list { flex: 1; overflow-y: auto; padding: 4px 12px 14px; }
+  .ticket-list::-webkit-scrollbar { width: 8px; }
+  .ticket-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 99px; }
+  .ticket {
+    width: 100%; text-align: left; background: rgba(255,255,255,.035);
+    border: 1px solid rgba(255,255,255,.08); border-left: 3px solid transparent;
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; transition: all .15s; color: #e6ecf5;
+  }
+  .ticket:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.14); }
+  .ticket.active { background: rgba(228,0,43,.14); border-color: rgba(228,0,43,.4); border-left-color: var(--red); }
+  .ticket .t-top { display: flex; align-items: center; gap: 8px; }
+  .ticket .t-id { font-family: var(--mono); font-size: 11px; color: #8fa2bd; }
+  .ticket .t-subject { font-weight: 600; font-size: 13px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f2f6fc; }
+  .ticket .t-meta { font-size: 11px; color: #8fa2bd; margin-top: 3px; }
+  .badge {
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: .4px;
+  }
+  .badge.open { background: rgba(70,125,205,.22); color: #9ec1f0; }
+  .badge.escalated_to_l3 { background: rgba(228,0,43,.22); color: #ff92a4; }
+  .badge.resolved { background: rgba(14,138,95,.24); color: #6fd3a8; }
+  .empty-state { padding: 30px 18px; text-align: center; color: #8fa2bd; font-size: 13px; }
+
+  /* ---------- Chat ---------- */
+  .chat { display: flex; flex-direction: column; height: 100%; overflow: hidden; background: var(--chat-bg); }
+  .chat-body { flex: 1; overflow-y: auto; padding: 26px 6% 10px; }
+  .chat-wrap { max-width: 820px; margin: 0 auto; }
+  .msg { display: flex; gap: 12px; margin-bottom: 22px; animation: rise .22s ease; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .avatar {
+    flex: 0 0 34px; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+    font-weight: 750; font-size: 13px; color: #fff;
+  }
+  .avatar.user { background: var(--navy-2); }
+  .avatar.bot { background: var(--red); }
+  .bubble { flex: 1; min-width: 0; }
+  .bubble .who { font-size: 12px; font-weight: 650; color: var(--chat-muted); margin-bottom: 4px; }
+  .bubble .card {
+    background: var(--chat-card); border: 1px solid var(--chat-line); border-radius: var(--radius);
+    padding: 14px 16px; color: var(--chat-text); white-space: pre-wrap; word-break: break-word;
+  }
+  .msg.user .bubble .card { background: var(--chat-card-user); color: #eef3fb; border-color: rgba(255,255,255,.14); }
+  .msg.user .bubble .who { text-align: right; }
+
+  .conf-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .conf-meter { width: 130px; height: 6px; border-radius: 99px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .conf-meter span { display: block; height: 100%; border-radius: 99px; background: var(--ok); }
+  .conf-meter.low span { background: var(--warn); }
+  .conf-label { font-size: 11px; color: var(--chat-muted); }
+  .mode-chip { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: rgba(255,255,255,.09); color: #9fb0c9; letter-spacing: .4px; }
+
+  .sources { margin-top: 12px; border-top: 1px dashed rgba(255,255,255,.14); padding-top: 10px; }
+  .sources summary { cursor: pointer; font-size: 12px; font-weight: 650; color: var(--chat-muted); user-select: none; }
+  .src-item { margin-top: 8px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; background: rgba(255,255,255,.045); }
+  .src-item .s-title { font-size: 13px; font-weight: 620; display: flex; gap: 8px; align-items: baseline; color: var(--chat-text); }
+  .src-item .s-cat { font-size: 10px; font-weight: 700; color: #9ec1f0; background: rgba(70,125,205,.25); padding: 1px 7px; border-radius: 6px; }
+  .src-item .s-score { font-family: var(--mono); font-size: 11px; color: var(--chat-muted); }
+  .src-item .s-snippet { font-size: 12px; color: var(--chat-muted); margin-top: 5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  .esc-note {
+    margin-top: 12px; padding: 10px 14px; border-radius: 10px; font-size: 13px;
+    background: rgba(228,0,43,.16); border: 1px solid rgba(228,0,43,.4); color: #ff92a4;
+  }
+
+  .suggest { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px auto 18px; max-width: 760px; }
+  .suggest button {
+    background: rgba(255,255,255,.055); border: 1px solid rgba(255,255,255,.14); border-radius: 999px;
+    padding: 7px 14px; font-size: 12.5px; color: #cfd9e8; transition: all .15s;
+  }
+  .suggest button:hover { border-color: var(--red); color: #fff; background: rgba(228,0,43,.25); }
+
+  .typing { display: flex; align-items: center; gap: 6px; padding: 14px 16px; }
+  .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--chat-muted); animation: blink 1.2s infinite; }
+  .typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+  /* ---------- Composer (VF-style card) ---------- */
+  .composer { border-top: 1px solid rgba(255,255,255,.08); background: var(--chat-bg); padding: 14px 6% 12px; }
+  .composer-wrap { max-width: 840px; margin: 0 auto; }
+  .vf-card {
+    position: relative; background: var(--chat-card); border: 1px solid rgba(255,255,255,.13);
+    border-radius: 18px; padding: 14px 16px 10px; box-shadow: 0 8px 28px rgba(0,0,0,.35);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .vf-card:focus-within { border-color: rgba(228,0,43,.55); box-shadow: 0 8px 28px rgba(0,0,0,.35), 0 0 0 3px rgba(228,0,43,.14); }
+  .vf-card textarea {
+    width: 100%; resize: none; border: none; background: transparent; outline: none;
+    font: inherit; color: var(--chat-text); min-height: 44px; max-height: 170px; padding: 2px 44px 10px 0;
+  }
+  .vf-card textarea::placeholder { color: var(--chat-muted); }
+  .vf-corner {
+    position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(14,138,95,.18); border: 1px solid rgba(14,138,95,.5); color: #6fd3a8;
+    display: grid; place-items: center; font-size: 14px; transition: all .15s;
+  }
+  .vf-corner:hover { background: rgba(14,138,95,.32); transform: rotate(-12deg); }
+  .vf-row { display: flex; align-items: center; gap: 8px; }
+  .vf-plus {
+    width: 30px; height: 30px; border-radius: 9px; background: transparent; border: none;
+    color: var(--chat-muted); font-size: 18px; line-height: 1; transition: all .15s;
+  }
+  .vf-plus:hover { color: #fff; background: rgba(255,255,255,.09); }
+  .vf-spacer { flex: 1; }
+  .vf-model {
+    display: inline-flex; align-items: center; gap: 7px; background: transparent; border: none;
+    color: #cfd9e8; font-size: 12.5px; padding: 6px 8px; border-radius: 9px; max-width: 300px; transition: all .15s;
+  }
+  .vf-model:hover { background: rgba(255,255,255,.09); }
+  .vf-model .spark { color: #9ec1f0; font-size: 13px; }
+  .vf-model select {
+    appearance: none; -webkit-appearance: none; background: transparent; border: none; outline: none;
+    color: #cfd9e8; font-size: 12.5px; max-width: 210px; text-overflow: ellipsis; cursor: pointer;
+  }
+  .vf-model select option { background: var(--chat-card); color: #cfd9e8; }
+  .vf-model .chev { color: var(--chat-muted); font-size: 9px; }
+  .vf-send {
+    width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--red); color: #fff;
+    display: grid; place-items: center; font-size: 15px; font-weight: 700; transition: all .15s; flex: 0 0 36px;
+  }
+  .vf-send:hover { background: var(--red-dark); transform: translateY(-1px); }
+  .vf-send:disabled { background: rgba(255,255,255,.15); color: var(--chat-muted); cursor: not-allowed; transform: none; }
+  .vf-status { display: flex; align-items: center; gap: 12px; margin-top: 9px; font-size: 11.5px; color: var(--chat-muted); }
+  .vf-online { display: inline-flex; align-items: center; gap: 6px; color: #6fd3a8; font-weight: 600; }
+  .vf-online .dot { width: 7px; height: 7px; border-radius: 50%; background: #0e8a5f; }
+  .vf-online.off { color: var(--warn); }
+  .vf-online.off .dot { background: var(--warn); }
+  .vf-note { flex: 1; text-align: center; }
+  .vf-stats { font-family: var(--mono); font-size: 11px; }
+  .btn {
+    border: none; border-radius: 12px; padding: 12px 18px; font-weight: 650; transition: all .15s;
+  }
+  .btn-primary { background: var(--red); color: #fff; }
+  .btn-primary:hover { background: var(--red-dark); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid rgba(255,255,255,.16); color: #9fb0c9; }
+  .btn-ghost:hover { border-color: var(--red); color: var(--red); }
+  .btn-danger { background: rgba(228,0,43,.2); color: #ff92a4; border: 1px solid rgba(228,0,43,.4); }
+  .btn-danger:hover { background: rgba(228,0,43,.32); }
+
+  /* ---------- Composer control row ---------- */
+  .composer-controls {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .ctl-btn {
+    display: inline-flex; align-items: center; gap: 6px; background: var(--chat-card);
+    border: 1px solid rgba(255,255,255,.12); color: #cfd9e8; border-radius: 9px;
+    padding: 6px 10px; font-size: 12.5px; transition: all .15s;
+  }
+  .ctl-btn:hover { border-color: var(--red); color: #fff; background: rgba(228,0,43,.18); }
+  .ctl-btn .plus { font-size: 15px; line-height: 1; }
+  .ctl-select {
+    background: var(--chat-card); border: 1px solid rgba(255,255,255,.12); color: #cfd9e8;
+    border-radius: 9px; padding: 6px 8px; font-size: 12.5px; outline: none; max-width: 220px;
+  }
+  .ctl-select option { background: var(--chat-card); color: #cfd9e8; }
+  .ctl-spacer { flex: 1; }
+  .popover {
+    position: absolute; bottom: calc(100% + 6px); left: 0; min-width: 220px;
+    background: var(--chat-card); border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
+    padding: 6px; box-shadow: 0 12px 32px rgba(0,0,0,.45); display: none; z-index: 50;
+  }
+  .popover.open { display: block; }
+  .popover button {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    background: transparent; border: none; color: #dbe4f0; border-radius: 8px;
+    padding: 9px 10px; font-size: 13px;
+  }
+  .popover button:hover { background: rgba(255,255,255,.08); }
+  .popover .pk { font-size: 15px; }
+  .ctl-wrap { position: relative; }
+
+  /* ---------- Inspector (right panel) ---------- */
+  .inspector {
+    background: var(--chat-bg); border-left: 1px solid rgba(255,255,255,.08);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .insp-tabs { display: flex; gap: 2px; padding: 12px 12px 0; }
+  .insp-tab {
+    flex: 1; text-align: center; background: transparent; border: none; color: var(--chat-muted);
+    font-size: 12px; font-weight: 650; padding: 8px 4px; border-radius: 8px 8px 0 0;
+    border-bottom: 2px solid transparent; transition: all .15s;
+  }
+  .insp-tab.active { color: #fff; border-bottom-color: var(--red); }
+  .insp-body { flex: 1; overflow-y: auto; padding: 14px 14px 18px; }
+  .insp-section { margin-bottom: 16px; }
+  .insp-section h4 {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
+    color: var(--chat-muted); margin-bottom: 8px;
+  }
+  .kv { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; font-size: 12.5px; border-bottom: 1px solid rgba(255,255,255,.05); }
+  .kv:last-child { border-bottom: none; }
+  .kv .k { color: var(--chat-muted); }
+  .kv .v { color: #e6ecf5; font-weight: 600; text-align: right; }
+  .kv .v.mono { font-family: var(--mono); font-size: 11.5px; }
+  .insp-empty { color: var(--chat-muted); font-size: 12.5px; padding: 8px 0; }
+  .src-mini {
+    padding: 9px 10px; border: 1px solid rgba(255,255,255,.09); border-radius: 9px;
+    background: rgba(255,255,255,.04); margin-bottom: 8px;
+  }
+  .src-mini .sm-title { font-size: 12.5px; font-weight: 630; color: #e6ecf5; }
+  .src-mini .sm-meta { font-size: 11px; color: var(--chat-muted); margin-top: 2px; }
+  .src-mini .sm-snip { font-size: 11.5px; color: var(--chat-muted); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* ---------- Escalation rail ---------- */
+  .rail {
+    position: fixed; top: 0; right: 0; height: 100vh; width: min(520px, 94vw);
+    background: var(--surface); box-shadow: -12px 0 40px rgba(12,21,38,.18); z-index: 40;
+    transform: translateX(105%); transition: transform .28s cubic-bezier(.2,.8,.2,1);
+    display: flex; flex-direction: column;
+  }
+  .rail.open { transform: translateX(0); }
+  .rail-head { padding: 18px 22px; background: var(--ink); color: #fff; }
+  .rail-head h2 { font-size: 15px; display: flex; align-items: center; gap: 10px; }
+  .flow { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 11.5px; color: #9fb0c9; }
+  .flow .step { padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,.1); }
+  .flow .step.hot { background: var(--red); color: #fff; font-weight: 700; }
+  .flow .arrow { color: #5c6b80; }
+  .rail-body { flex: 1; overflow-y: auto; padding: 20px 22px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12px; font-weight: 650; color: var(--muted); margin-bottom: 6px; }
+  .field input, .field textarea, .field select {
+    width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: inherit; background: #fafbfd;
+  }
+  .field textarea { min-height: 90px; resize: vertical; }
+  .transcript-preview { background: #f6f8fb; border: 1px solid var(--line); border-radius: 10px; padding: 12px; max-height: 220px; overflow-y: auto; }
+  .tp-item { font-size: 12.5px; margin-bottom: 8px; }
+  .tp-item b { color: var(--navy-2); }
+  .rail-foot { padding: 16px 22px; border-top: 1px solid var(--line); display: flex; gap: 10px; justify-content: flex-end; }
+  .overlay { position: fixed; inset: 0; background: rgba(12,21,38,.45); z-index: 30; opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+
+  /* ---------- Toast ---------- */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 13.5px;
+    box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: all .25s; z-index: 60;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- Tabs ---------- */
+  .tabs { display: flex; gap: 2px; margin-left: 20px; align-self: stretch; align-items: flex-end; }
+  .tab { background: transparent; border: none; color: #9fb0c9; font-size: 13px; font-weight: 600; padding: 10px 12px; border-bottom: 2px solid transparent; }
+  .tab:hover { color: #fff; }
+  .tab.active { color: #fff; border-bottom-color: var(--red); }
+
+  /* ---------- Views ---------- */
+  .view { grid-column: 1 / -1; grid-row: 2; display: none; overflow: hidden; background: var(--chat-bg); }
+  .shell:not(.view-chat) .sidebar, .shell:not(.view-chat) .chat, .shell:not(.view-chat) .inspector { display: none; }
+  .shell.view-kb #viewKb, .shell.view-tickets #viewTickets, .shell.view-flow #viewFlow,
+  .shell.view-services #viewServices, .shell.view-errors #viewErrors, .shell.view-preview #viewPreview { display: flex; }
+
+  #viewKb { flex-direction: row; }
+  .kb-pane { width: 300px; border-right: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; }
+  .kb-head { padding: 12px; border-bottom: 1px solid rgba(255,255,255,.08); display: flex; gap: 8px; }
+  .kb-head input { flex: 1; background: var(--chat-card); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; padding: 8px 10px; color: var(--chat-text); outline: none; font: inherit; font-size: 13px; }
+  .kb-list { flex: 1; overflow-y: auto; padding: 10px; }
+  .kb-item { display: block; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 9px; padding: 9px 10px; color: #dbe4f0; margin-bottom: 4px; }
+  .kb-item:hover { background: rgba(255,255,255,.06); }
+  .kb-item.active { background: rgba(228,0,43,.14); border-color: rgba(228,0,43,.4); }
+  .kb-item .kb-t { font-size: 13px; font-weight: 600; }
+  .kb-item .kb-m { font-size: 11px; color: var(--chat-muted); margin-top: 2px; }
+  .kb-editor { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .kb-ed-head { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.08); display: flex; align-items: center; gap: 10px; }
+  .kb-ed-head .kb-title { flex: 1; color: #e6ecf5; font-weight: 650; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #kbEditor { flex: 1; background: transparent; border: none; outline: none; resize: none; color: var(--chat-text); font-family: var(--mono); font-size: 13px; padding: 16px; line-height: 1.6; }
+
+  #viewTickets { flex-direction: column; }
+  .tk-toolbar { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.08); display: flex; gap: 10px; align-items: center; }
+  .tk-board { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 16px; overflow-y: auto; }
+  .tk-col { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 12px; }
+  .tk-col h4 { font-size: 12px; color: var(--chat-muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 10px; }
+  .tk-card { background: var(--chat-card); border: 1px solid rgba(255,255,255,.1); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .tk-card .tc-t { font-size: 13px; font-weight: 600; color: #e6ecf5; }
+  .tk-card .tc-m { font-size: 11px; color: var(--chat-muted); margin-top: 3px; }
+  .tk-audit { border-top: 1px solid rgba(255,255,255,.08); padding: 12px 16px; max-height: 190px; overflow-y: auto; }
+  .tk-audit h4 { font-size: 11px; color: var(--chat-muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 8px; }
+  .audit-item { font-size: 12px; color: var(--chat-muted); padding: 3px 0; display: flex; gap: 10px; }
+  .audit-item .a-time { font-family: var(--mono); font-size: 11px; color: #6b7d99; flex: 0 0 auto; }
+  .audit-item .a-act { color: #cfd9e8; }
+
+  #viewFlow { flex-direction: column; padding: 20px; overflow-y: auto; }
+  .flow-visual { display: flex; align-items: center; gap: 14px; justify-content: center; padding: 34px 0 26px; }
+  .flow-node { background: var(--chat-card); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 16px 24px; text-align: center; min-width: 160px; }
+  .flow-node .fn-lvl { font-size: 10px; letter-spacing: .6px; text-transform: uppercase; color: var(--chat-muted); }
+  .flow-node .fn-name { font-size: 14px; font-weight: 700; color: #fff; margin-top: 4px; }
+  .flow-node.hot { border-color: var(--red); background: rgba(228,0,43,.15); }
+  .flow-node.hot .fn-lvl { color: #ff92a4; }
+  .flow-arrow { color: var(--chat-muted); font-size: 20px; }
+  .flow-assign { max-width: 740px; margin: 6px auto; width: 100%; }
+  .flow-assign h4 { font-size: 12px; color: var(--chat-muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 10px; }
+  .flow-table { width: 100%; border-collapse: collapse; }
+  .flow-table th, .flow-table td { text-align: left; padding: 9px 12px; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,.07); }
+  .flow-table th { color: var(--chat-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  .flow-table td { color: #dbe4f0; }
+  .flow-table .owner { color: #9ec1f0; font-weight: 600; }
+
+  #viewServices { flex-direction: column; padding: 20px; overflow: hidden; }
+  .svc-legend { display: flex; gap: 14px; justify-content: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .svc-legend span { font-size: 12px; color: var(--chat-muted); display: inline-flex; align-items: center; gap: 6px; }
+  .svc-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .canvas-box { flex: 1; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,.07); border-radius: 14px; background: radial-gradient(ellipse at center, rgba(255,255,255,.03), transparent 70%); }
+  .canvas-box svg { width: 100%; height: 100%; display: block; }
+  .cn { cursor: grab; }
+  .cn:active { cursor: grabbing; }
+  .cn text { pointer-events: none; }
+  .cn:hover > circle.node-ring { stroke-width: 2.5; }
+  .detail-panel {
+    position: absolute; right: 16px; top: 16px; width: 300px; max-height: calc(100% - 32px); overflow-y: auto;
+    background: var(--chat-card); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 16px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.5);
+  }
+  .detail-panel h3 { font-size: 15px; color: #fff; margin-bottom: 4px; }
+  .detail-panel .dp-sub { font-size: 12px; color: var(--chat-muted); }
+  .detail-panel .dp-k { font-size: 11px; color: var(--chat-muted); text-transform: uppercase; letter-spacing: .5px; margin: 12px 0 4px; }
+  .detail-panel .dp-v { font-size: 12.5px; color: #dbe4f0; }
+  .detail-panel ul { list-style: none; padding: 0; }
+  .detail-panel li { font-size: 12.5px; color: #dbe4f0; padding: 3px 0; }
+  .detail-panel .dp-rel { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+  .detail-panel .dp-rel button { background: rgba(70,125,205,.22); color: #9ec1f0; border: 1px solid rgba(70,125,205,.4); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; }
+  .detail-panel .dp-rel button:hover { background: rgba(70,125,205,.35); }
+  .detail-panel .dp-action { margin-top: 12px; display: flex; gap: 8px; }
+
+  #viewFlow { flex-direction: column; padding: 16px; overflow: hidden; }
+  .flow-toolbar { display: flex; gap: 10px; align-items: center; padding: 0 0 12px; }
+  .flow-toolbar input { background: var(--chat-card); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; padding: 7px 10px; color: var(--chat-text); outline: none; font: inherit; font-size: 13px; width: 240px; }
+  .flow-toolbar .hint { font-size: 11.5px; color: var(--chat-muted); }
+  .flow-list {
+    position: absolute; right: 16px; top: 16px; width: 250px; background: var(--chat-card);
+    border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 12px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.5); max-height: 55%; overflow-y: auto; z-index: 5;
+  }
+  .flow-list h4 { font-size: 11px; color: var(--chat-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+  .flow-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; font-size: 12.5px; color: #dbe4f0; }
+  .flow-item:hover { background: rgba(255,255,255,.07); }
+  .flow-item .fi-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .flow-item .fi-run { background: rgba(228,0,43,.2); color: #ff92a4; border: 1px solid rgba(228,0,43,.4); border-radius: 6px; padding: 2px 8px; font-size: 11px; }
+  .flow-item .fi-del { background: none; border: none; color: var(--chat-muted); cursor: pointer; font-size: 12px; }
+
+  #viewErrors { flex-direction: column; padding: 20px; overflow: hidden; }
+  .err-legend { display: flex; gap: 14px; justify-content: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .err-legend span { font-size: 12px; color: var(--chat-muted); display: inline-flex; align-items: center; gap: 6px; }
+  .err-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  #viewPreview { flex-direction: column; }
+  #previewFrame { flex: 1; border: none; background: #fff; }
+
+  /* ---------- Pillar picker ---------- */
+  .picker {
+    position: absolute; bottom: calc(100% + 8px); left: 0; min-width: 300px; max-height: 320px; overflow-y: auto;
+    background: var(--chat-card); border: 1px solid rgba(255,255,255,.14); border-radius: 12px; padding: 6px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.5); z-index: 55;
+  }
+  .picker button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent; border: none; color: #dbe4f0; border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  .picker button:hover, .picker button.sel { background: rgba(255,255,255,.08); }
+  .picker .pk-icon { font-size: 15px; }
+  .picker .pk-name { font-weight: 600; }
+  .picker .pk-desc { font-size: 11px; color: var(--chat-muted); }
+  .picker .pk-head { font-size: 10px; letter-spacing: .6px; text-transform: uppercase; color: var(--chat-muted); padding: 6px 10px 4px; }
+  .agent-chip { display: inline-flex; align-items: center; gap: 6px; background: rgba(70,125,205,.22); color: #9ec1f0; border: 1px solid rgba(70,125,205,.4); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; margin-bottom: 6px; }
+  .agent-chip button { background: none; border: none; color: #9ec1f0; cursor: pointer; font-size: 12px; padding: 0 2px; }
+
+  body.embed .tabs, body.embed .icon-btn, body.embed .sidebar, body.embed .inspector, body.embed .topbar .btn { display: none !important; }
+  body.embed .shell, body.embed .shell.no-left, body.embed .shell.no-right, body.embed .shell.no-left.no-right { grid-template-columns: 1fr; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell view-chat">
+  <div class="topbar">
+    <div class="brand">
+      <img class="brand-logo" src="/static/logo.png" alt="FPT AI Factory">
+      <span class="brand-sub">Support Console · L1/L2</span>
+    </div>
+    <nav class="tabs" id="tabBar">
+      <button class="tab active" data-view="chat" onclick="switchView('chat')">Chat</button>
+      <button class="tab" data-view="kb" onclick="switchView('kb')">Kho tài liệu</button>
+      <button class="tab" data-view="tickets" onclick="switchView('tickets')">Ticket & Audit</button>
+      <button class="tab" data-view="flow" onclick="switchView('flow')">Luồng</button>
+      <button class="tab" data-view="services" onclick="switchView('services')">Dịch vụ</button>
+      <button class="tab" data-view="errors" onclick="switchView('errors')">Lỗi</button>
+      <button class="tab" data-view="preview" onclick="switchView('preview')">Preview</button>
+    </nav>
+    <div class="spacer"></div>
+    <button class="icon-btn" id="toggleLeft" title="Ẩn / hiện danh sách ticket" onclick="togglePanel('left')">◧</button>
+    <button class="icon-btn" id="toggleRight" title="Ẩn / hiện panel thông tin" onclick="togglePanel('right')">◨</button>
+    <span class="pill" id="pillMode"><span class="dot"></span><span id="pillModeText">đang kết nối…</span></span>
+    <button class="btn btn-ghost" style="border-color:rgba(255,255,255,.25);color:#cfd9e8" onclick="openRail()">Escalate L3</button>
+  </div>
+
+  <aside class="sidebar">
+    <div class="side-head">
+      <span class="side-title">Ticket · L3</span>
+      <button class="btn btn-primary" style="padding:6px 12px;font-size:12px" onclick="openRail()">+ Tạo mới</button>
+    </div>
+    <div class="ticket-list" id="ticketList">
+      <div class="empty-state">Chưa có ticket nào.<br>Tạo ticket khi không giải quyết được.</div>
+    </div>
+  </aside>
+
+  <main class="chat">
+    <div class="chat-body" id="chatBody">
+      <div class="chat-wrap" id="chatWrap"></div>
+    </div>
+    <div class="suggest" id="suggestRow">
+      <button onclick="ask(this.dataset.q)" data-q="API trả về lỗi 401 thì xử lý sao?">Lỗi 401 Unauthorized</button>
+      <button onclick="ask(this.dataset.q)" data-q="Làm sao đăng ký sử dụng dịch vụ?">Đăng ký dịch vụ</button>
+      <button onclick="ask(this.dataset.q)" data-q="API trả về lỗi 429 rate limit thì sao?">Lỗi 429 rate limit</button>
+      <button onclick="ask(this.dataset.q)" data-q="SLA của dịch vụ là gì?">SLA dịch vụ</button>
+    </div>
+    <div class="composer">
+      <div class="composer-wrap">
+        <div class="vf-card">
+          <input type="file" id="fileInput" accept="image/*" style="display:none">
+          <div class="picker" id="pillarPicker" style="display:none"></div>
+          <button class="vf-corner" title="Đính kèm ảnh" onclick="pickFile()">📎</button>
+          <div id="agentChipBox" style="display:none;margin-bottom:6px"></div>
+          <textarea id="input" rows="1" placeholder="Nhập câu hỏi… (Enter để gửi, Shift+Enter xuống dòng, dán ảnh hoặc 📎 để phân tích ảnh, gõ / ! # để mở picker)"></textarea>
+          <div id="attachBox" style="display:none;flex-direction:column;gap:6px;margin-bottom:8px;width:100%">
+            <div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:8px 10px">
+              <img id="attachThumb" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:8px">
+              <span id="attachName" style="font-size:12px;color:var(--chat-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>
+              <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="clearAttach()">Bỏ</button>
+            </div>
+          </div>
+          <div class="vf-row">
+            <div class="ctl-wrap">
+              <button class="vf-plus" id="toolboxBtn" onclick="toggleToolbox(event)" title="Toolbox">＋</button>
+              <div class="popover" id="toolboxMenu">
+                <button onclick="pickFile()"><span class="pk">📎</span> Đính kèm ảnh</button>
+                <button onclick="reloadKb()"><span class="pk">🔄</span> Nạp lại kho tài liệu</button>
+                <button onclick="downloadTranscript()"><span class="pk">💾</span> Tải transcript (.md)</button>
+              </div>
+            </div>
+            <div class="vf-spacer"></div>
+            <label class="vf-model" title="Model đang xử lý">
+              <span class="spark">✦</span>
+              <select id="modelPicker"></select>
+              <span class="chev">▼</span>
+            </label>
+            <button class="vf-send" id="sendBtn" onclick="sendOrStop()" title="Gửi">↑</button>
+          </div>
+        </div>
+        <div class="vf-status">
+          <span class="vf-online" id="vfOnline"><span class="dot"></span>Online</span>
+          <span class="vf-note">AI có thể mắc lỗi. Hãy kiểm tra kỹ câu trả lời trước khi trả lời khách hàng.</span>
+          <span class="vf-stats" id="vfStats">…</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="inspector">
+    <div class="insp-tabs">
+      <button class="insp-tab active" data-tab="ctx" onclick="switchInsp('ctx')">Ngữ cảnh</button>
+      <button class="insp-tab" data-tab="src" onclick="switchInsp('src')">Nguồn</button>
+      <button class="insp-tab" data-tab="tk" onclick="switchInsp('tk')">Ticket</button>
+    </div>
+    <div class="insp-body" id="inspCtx">
+      <div class="insp-section">
+        <h4>Trạng thái hệ thống</h4>
+        <div class="kv"><span class="k">Chế độ</span><span class="v" id="iMode">—</span></div>
+        <div class="kv"><span class="k">Chunks KB</span><span class="v mono" id="iChunks">—</span></div>
+        <div class="kv"><span class="k">Vector index</span><span class="v" id="iVec">—</span></div>
+      </div>
+      <div class="insp-section">
+        <h4>Model</h4>
+        <div class="kv"><span class="k">Chat</span><span class="v mono" id="iChat">—</span></div>
+        <div class="kv"><span class="k">Router</span><span class="v mono" id="iRouter">—</span></div>
+        <div class="kv"><span class="k">Vision</span><span class="v mono" id="iVision">—</span></div>
+      </div>
+      <div class="insp-section">
+        <h4>Câu trả lời gần nhất</h4>
+        <div class="kv"><span class="k">Intent</span><span class="v" id="iIntent">—</span></div>
+        <div class="kv"><span class="k">Tin cậy</span><span class="v" id="iConf">—</span></div>
+        <div class="kv"><span class="k">Khẩn cấp</span><span class="v" id="iUrgent">—</span></div>
+        <div class="kv"><span class="k">Tâm trạng</span><span class="v" id="iMood">—</span></div>
+      </div>
+    </div>
+    <div class="insp-body" id="inspSrc" style="display:none">
+      <div class="insp-empty" id="srcEmpty">Chưa có câu trả lời nào. Gửi câu hỏi để xem nguồn tài liệu được trích dẫn.</div>
+      <div id="srcList"></div>
+    </div>
+    <div class="insp-body" id="inspTk" style="display:none">
+      <div class="insp-empty" id="tkEmpty">Chọn một ticket bên trái để xem chi tiết.</div>
+      <div id="tkDetail"></div>
+    </div>
+  </aside>
+
+  <section class="view" id="viewKb">
+    <div class="kb-pane">
+      <div class="kb-head">
+        <input id="kbSearch" placeholder="Tìm tài liệu…" oninput="renderKbList(this.value)">
+        <button class="ctl-btn" onclick="reloadKb()" title="Nạp lại KB">🔄</button>
+      </div>
+      <div class="kb-list" id="kbList"></div>
+    </div>
+    <div class="kb-editor">
+      <div class="kb-ed-head">
+        <span class="kb-title" id="kbDocTitle">Chọn tài liệu bên trái</span>
+        <button class="btn btn-primary" style="padding:7px 14px;font-size:12.5px" onclick="saveKbDoc()">Lưu</button>
+      </div>
+      <textarea id="kbEditor" spellcheck="false" placeholder="// Nội dung tài liệu markdown"></textarea>
+    </div>
+  </section>
+
+  <section class="view" id="viewTickets">
+    <div class="tk-toolbar">
+      <span style="color:var(--chat-muted);font-size:13px;font-weight:600">Board ticket</span>
+      <div class="ctl-spacer"></div>
+      <button class="ctl-btn" onclick="openRail()">＋ Tạo ticket</button>
+    </div>
+    <div class="tk-board" id="tkBoard"></div>
+    <div class="tk-audit">
+      <h4>Nhật ký hoạt động</h4>
+      <div id="tkAuditList"></div>
+    </div>
+  </section>
+
+  <section class="view" id="viewFlow">
+    <div class="flow-toolbar">
+      <input id="flowName" placeholder="Tên template (VD: incident-gpu)">
+      <button class="btn btn-primary" style="padding:8px 14px;font-size:12.5px" onclick="saveFlow()">💾 Lưu template</button>
+      <span class="hint">Kéo thả node để sắp xếp · Lưu rồi chạy từ <b>#</b> trong Chat</span>
+    </div>
+    <div class="canvas-box" id="flowCanvasBox">
+      <svg id="flowCanvas"></svg>
+      <div class="flow-list" id="flowList"></div>
+    </div>
+  </section>
+
+  <section class="view" id="viewServices">
+    <div class="svc-legend" id="svcLegend"></div>
+    <div class="canvas-box" id="svcCanvasBox">
+      <svg id="svcCanvas"></svg>
+      <div class="detail-panel" id="svcDetail" style="display:none"></div>
+    </div>
+  </section>
+
+  <section class="view" id="viewErrors">
+    <div class="err-legend" id="errLegend"></div>
+    <div class="canvas-box" id="errCanvasBox">
+      <svg id="errCanvas"></svg>
+      <div class="detail-panel" id="errDetail" style="display:none"></div>
+    </div>
+  </section>
+
+  <section class="view" id="viewPreview">
+    <iframe id="previewFrame" title="Preview"></iframe>
+  </section>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeRail()"></div>
+<div class="rail" id="rail">
+  <div class="rail-head">
+    <h2>Escalate lên L3</h2>
+    <div class="flow">
+      <span class="step">L1 tiếp nhận</span><span class="arrow">→</span>
+      <span class="step">L2 vận hành</span><span class="arrow">→</span>
+      <span class="step hot">L3 xử lý</span>
+    </div>
+  </div>
+  <div class="rail-body">
+    <div class="field">
+      <label>Tiêu đề</label>
+      <input id="tSubject" placeholder="VD: Lỗi 401 khách hàng ABC Corp">
+    </div>
+    <div class="field">
+      <label>Mô tả sự cố / yêu cầu</label>
+      <textarea id="tDesc" placeholder="Mô tả chi tiết: thời điểm, tần suất, ảnh hưởng, bước đã thử…"></textarea>
+    </div>
+    <div class="field">
+      <label>Cấp độ xử lý</label>
+      <select id="tLevel" onchange="toggleAssigneeField()">
+        <option value="L2">L2 — Vận hành</option>
+        <option value="L3" selected>L3 — Sản phẩm/Tech (escalate)</option>
+      </select>
+    </div>
+    <div class="field" id="assigneeField">
+      <label>Kỹ thuật viên L3 phụ trách (theo dịch vụ)</label>
+      <select id="tAssignee">
+        <option value="">— Chọn dịch vụ / kỹ thuật viên —</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Ngữ cảnh hội thoại (tự động kèm theo)</label>
+      <div class="transcript-preview" id="tTranscript"></div>
+    </div>
+  </div>
+  <div class="rail-foot">
+    <button class="btn btn-ghost" onclick="closeRail()">Huỷ</button>
+    <button class="btn btn-danger" onclick="submitTicket()">Tạo ticket → L3</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let sessionId = "s-" + Math.random().toString(36).slice(2, 10);
+let transcript = [];
+
+/* ---------- Health ---------- */
+async function loadHealth() {
+  try {
+    const r = await fetch("/api/health");
+    const h = await r.json();
+    const pill = $("pillMode");
+    pill.classList.toggle("off", h.mode !== "llm");
+    $("pillModeText").textContent =
+      (h.mode === "llm" ? "LLM · RAG" : "Keyword · KB") + " · " + h.chunks + " chunks";
+    updateHealthInspector(h);
+  } catch (e) {
+    $("pillModeText").textContent = "không kết nối được";
+  }
+}
+
+/* ---------- Chat ---------- */
+function addMsg(role, html) {
+  const wrap = $("chatWrap");
+  const el = document.createElement("div");
+  el.className = "msg " + role;
+  el.innerHTML =
+    '<div class="avatar">' + (role === "user" ? "L1" : "AI") + "</div>" +
+    '<div class="bubble"><div class="who">' + (role === "user" ? "L1 / L2" : "Agent FPT AI Factory") + '</div><div class="card">' + html + "</div></div>";
+  wrap.appendChild(el);
+  $("chatBody").scrollTop = $("chatBody").scrollHeight;
+  return el;
+}
+
+function esc(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function fmtAnswer(a) {
+  const confPct = Math.round(a.confidence * 100);
+  const low = a.confidence < 0.35;
+  let html = esc(a.answer);
+  const routeChip = a.route
+    ? '<span class="mode-chip" title="' + esc(a.route.reason || "") + '">' +
+      esc(a.route.intent) + " · " + esc(a.route.model || "—") + "</span>" +
+      (a.route.urgent ? '<span class="mode-chip" style="background:#fde8ec;color:var(--red-dark)">KHẨN CẤP</span>' : "") +
+      (a.route.mood ? '<span class="mode-chip">' + esc(a.route.mood) + "</span>" : "")
+    : "";
+  html += '<div class="conf-row">' +
+    '<span class="conf-meter' + (low ? " low" : "") + '"><span style="width:' + confPct + '%"></span></span>' +
+    '<span class="conf-label">' + confPct + '% tin cậy</span>' +
+    '<span class="mode-chip">' + (a.mode === "llm" ? "RAG · LLM" : a.mode === "image" ? "Image" : a.mode === "vision" ? "Vision" : "KB · keyword") + "</span>" +
+    routeChip + "</div>";
+  if (a.sources && a.sources.length) {
+    html += '<details class="sources"><summary>Nguồn tài liệu (' + a.sources.length + ")</summary>";
+    a.sources.forEach((s) => {
+      html += '<div class="src-item"><div class="s-title"><span class="s-cat">' + esc(s.category || "kb") +
+        '</span><span>' + esc(s.title) + '</span><span class="s-score">' + s.score + "</span></div>" +
+        '<div class="s-snippet">' + esc(s.snippet) + "</div></div>";
+    });
+    html += "</details>";
+  }
+  if (a.escalate_suggested) {
+    html += '<div class="esc-note">⚠️ Không đủ thông tin trong kho tài liệu. Nên <b>tạo ticket đẩy L3</b> với ngữ cảnh hội thoại này.</div>';
+  }
+  return html;
+}
+
+async function ask(q) {
+  $("input").value = q;
+  await send();
+}
+
+async function send() {
+  const input = $("input");
+  const q = input.value.trim();
+  if (!q && !pendingImage) return;
+  input.value = "";
+  input.style.height = "auto";
+  const imgHtml = pendingImage ? '<img src="' + pendingImage + '" alt="" style="max-width:220px;max-height:160px;border-radius:10px;margin-top:8px;display:block">' : "";
+  addMsg("user", esc(q) + imgHtml);
+  transcript.push({ role: "user", content: q || "(kèm ảnh)" });
+
+  const typing = addMsg("bot", '<div class="typing"><i></i><i></i><i></i></div>');
+  const btn = $("sendBtn");
+  chatRunning = true;
+  chatAbort = new AbortController();
+  btn.textContent = "■";
+  btn.title = "Dừng";
+  try {
+    const body = { question: q || "Hãy phân tích ảnh này", session_id: sessionId, model: $("modelPicker").value || null };
+    if (currentAgent) body.agent = currentAgent.name;
+    if (pendingImage) body.image_data = pendingImage;
+    const r = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: chatAbort.signal,
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const a = await r.json();
+    typing.querySelector(".card").innerHTML = fmtAnswer(a);
+    transcript.push({ role: "assistant", content: a.answer });
+    updateInspector(a);
+  } catch (e) {
+    if (e.name === "AbortError") {
+      typing.querySelector(".card").innerHTML = '<span style="color:var(--warn)">Đã dừng yêu cầu.</span>';
+    } else {
+      typing.querySelector(".card").innerHTML =
+        '<span style="color:var(--red-dark)">Lỗi kết nối: ' + esc(e.message) + ". Thử lại sau.</span>";
+    }
+  } finally {
+    chatRunning = false;
+    chatAbort = null;
+    btn.textContent = "↑";
+    btn.title = "Gửi";
+    btn.disabled = false;
+    clearAttach();
+    $("input").focus();
+  }
+}
+
+let chatRunning = false;
+let chatAbort = null;
+function sendOrStop() {
+  if (chatRunning && chatAbort) { chatAbort.abort(); return; }
+  if (!chatRunning) send();
+}
+
+/* ---------- Inspector ---------- */
+let lastAnswer = null;
+function switchInsp(tab) {
+  document.querySelectorAll(".insp-tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+  $("inspCtx").style.display = tab === "ctx" ? "" : "none";
+  $("inspSrc").style.display = tab === "src" ? "" : "none";
+  $("inspTk").style.display = tab === "tk" ? "" : "none";
+}
+function updateInspector(a) {
+  lastAnswer = a;
+  const r = a.route || {};
+  $("iIntent").textContent = r.intent || "—";
+  $("iConf").textContent = (a.confidence != null ? Math.round(a.confidence * 100) : "—") + "%";
+  $("iUrgent").textContent = r.urgent ? "KHẨN CẤP" : "Không";
+  $("iMood").textContent = r.mood || "—";
+  const srcBox = $("srcList");
+  if (a.sources && a.sources.length) {
+    $("srcEmpty").style.display = "none";
+    srcBox.innerHTML = a.sources.map((s) =>
+      '<div class="src-mini"><div class="sm-title">' + esc(s.title) + "</div>" +
+      '<div class="sm-meta">' + esc(s.category || "kb") + " · score " + s.score + "</div>" +
+      (s.snippet ? '<div class="sm-snip">' + esc(s.snippet) + "</div>" : "") +
+      "</div>"
+    ).join("");
+  } else {
+    $("srcEmpty").style.display = "";
+    srcBox.innerHTML = "";
+  }
+}
+function updateHealthInspector(h) {
+  $("iMode").textContent = h.mode === "llm" ? "LLM · RAG" : "Keyword · KB";
+  $("iChunks").textContent = h.chunks ?? "—";
+  $("iVec").textContent = h.vector_indexed ? "Có" : "Không";
+  const on = $("vfOnline");
+  on.classList.toggle("off", h.mode !== "llm");
+  on.innerHTML = '<span class="dot"></span>' + (h.mode === "llm" ? "Online" : "Offline");
+  $("vfStats").textContent = "⚡ " + h.chunks + " chunks · vec " + (h.vector_indexed ? "on" : "off");
+}
+function updateModelsInspector(m) {
+  $("iChat").textContent = m.chat || "—";
+  $("iRouter").textContent = m.router || "—";
+  $("iVision").textContent = m.vision || "—";
+}
+
+/* ---------- Toolbox ---------- */
+function toggleToolbox(e) {
+  e.stopPropagation();
+  $("toolboxMenu").classList.toggle("open");
+}
+document.addEventListener("click", () => $("toolboxMenu").classList.remove("open"));
+function pickFile() {
+  $("toolboxMenu").classList.remove("open");
+  $("fileInput").click();
+}
+async function reloadKb() {
+  $("toolboxMenu").classList.remove("open");
+  toast("Đang nạp lại kho tài liệu…");
+  try {
+    const r = await fetch("/api/kb/reload", { method: "POST" });
+    const d = await r.json();
+    toast("KB đã nạp: " + d.chunks + " chunks");
+    loadHealth();
+  } catch (e) {
+    toast("Lỗi nạp KB: " + e.message);
+  }
+}
+function downloadTranscript() {
+  $("toolboxMenu").classList.remove("open");
+  const md = transcript.map((m) => "**" + (m.role === "user" ? "KH/L1" : "Agent") + ":** " + m.content).join("\n\n");
+  const blob = new Blob(["# Transcript hội thoại\n\n" + md], { type: "text/markdown" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "transcript-" + sessionId + ".md";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+async function loadModels() {
+  try {
+    const r = await fetch("/api/models");
+    const m = await r.json();
+    const sel = $("modelPicker");
+    sel.innerHTML =
+      '<option value="' + esc(m.chat) + '">Chat · ' + esc(m.chat) + "</option>" +
+      '<option value="' + esc(m.router) + '">Router · ' + esc(m.router) + "</option>" +
+      (m.vision ? '<option value="' + esc(m.vision) + '">Vision · ' + esc(m.vision) + "</option>" : "");
+    updateModelsInspector(m);
+  } catch (e) { /* im lặng */ }
+}
+
+/* ---------- Escalation rail ---------- */
+async function loadAssignees() {
+  try {
+    const r = await fetch("/api/tickets/assignees");
+    const d = await r.json();
+    const sel = $("tAssignee");
+    sel.innerHTML =
+      '<option value="">— Chọn dịch vụ / kỹ thuật viên —</option>' +
+      d.assignees.map((a) => '<option value="' + esc(a.name) + '">' + esc(a.service) + " — " + esc(a.name) + "</option>").join("");
+  } catch (e) { /* im lặng */ }
+}
+
+function toggleAssigneeField() {
+  $("assigneeField").style.display = $("tLevel").value === "L3" ? "" : "none";
+}
+
+function openRail() {
+  $("tSubject").value = "";
+  $("tDesc").value = "";
+  $("tAssignee").value = "";
+  toggleAssigneeField();
+  const last = transcript.slice(-4);
+  $("tTranscript").innerHTML = last.length
+    ? last.map((m) => '<div class="tp-item"><b>' + (m.role === "user" ? "KH/L1:" : "Agent:") + "</b> " + esc(m.content.slice(0, 260)) + "</div>").join("")
+    : '<div class="tp-item" style="color:var(--muted)">Chưa có hội thoại trong phiên này.</div>';
+  $("rail").classList.add("open");
+  $("overlay").classList.add("show");
+}
+function closeRail() {
+  $("rail").classList.remove("open");
+  $("overlay").classList.remove("show");
+}
+
+async function submitTicket() {
+  const subject = $("tSubject").value.trim();
+  const description = $("tDesc").value.trim();
+  if (!subject || !description) {
+    toast("Vui lòng điền tiêu đề và mô tả.");
+    return;
+  }
+  const level = $("tLevel").value;
+  const assignee = $("tAssignee").value;
+  if (level === "L3" && !assignee) {
+    toast("Vui lòng chọn kỹ thuật viên L3 phụ trách.");
+    return;
+  }
+  try {
+    const r = await fetch("/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject, description,
+        transcript: transcript.slice(-8),
+        level,
+        assignee,
+      }),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const t = await r.json();
+    toast("Ticket #" + t.id + " đã tạo → " + (t.level === "L3" ? "L3 · " + t.assignee : "L2"));
+    closeRail();
+    loadTickets();
+  } catch (e) {
+    toast("Lỗi tạo ticket: " + e.message);
+  }
+}
+
+/* ---------- Tickets ---------- */
+async function loadTickets() {
+  try {
+    const r = await fetch("/api/tickets");
+    const list = await r.json();
+    const box = $("ticketList");
+    if (!list.length) {
+      box.innerHTML = '<div class="empty-state">Chưa có ticket nào.<br>Tạo ticket khi không giải quyết được.</div>';
+      return;
+    }
+    box.innerHTML = list.map((t) =>
+      '<button class="ticket" onclick="showTicket(' + t.id + ')">' +
+      '<div class="t-top"><span class="t-id">#' + t.id + "</span>" +
+      '<span class="badge ' + t.status + '">' + statusLabel(t.status) + "</span></div>" +
+      '<div class="t-subject">' + esc(t.subject) + "</div>" +
+      '<div class="t-meta">' + esc(t.level) + (t.assignee ? " · " + esc(t.assignee) : "") + " · " + esc(t.created_at.slice(0, 16).replace("T", " ")) + "</div>" +
+      "</button>"
+    ).join("");
+  } catch (e) { /* im lặng */ }
+}
+
+function statusLabel(s) {
+  return { open: "OPEN", escalated_to_l3: "L3", resolved: "RESOLVED" }[s] || s;
+}
+
+async function showTicket(id) {
+  const r = await fetch("/api/tickets/" + id);
+  const t = await r.json();
+  const tp = (t.transcript || []).map((m) =>
+    '<div class="tp-item"><b>' + (m.role === "user" ? "KH/L1:" : "Agent:") + "</b> " + esc(m.content.slice(0, 240)) + "</div>"
+  ).join("") || '<div class="tp-item" style="color:var(--muted)">(không có transcript)</div>';
+  $("tSubject").value = t.subject;
+  $("tDesc").value = t.description + (t.resolution ? "\n\n[Đã xử lý] " + t.resolution : "");
+  $("tTranscript").innerHTML = tp;
+  $("tLevel").value = t.level;
+  $("tAssignee").value = t.assignee || "";
+  toggleAssigneeField();
+  $("rail").classList.add("open");
+  $("overlay").classList.add("show");
+  $("tkEmpty").style.display = "none";
+  $("tkDetail").innerHTML =
+    '<div class="src-mini"><div class="sm-title">#' + t.id + " · " + esc(t.subject) + "</div>" +
+    '<div class="sm-meta">' + esc(t.level) + (t.assignee ? " · " + esc(t.assignee) : "") + " · " + statusLabel(t.status) + "</div>" +
+    '<div class="sm-snip">' + esc(t.description) + "</div></div>";
+}
+
+/* ---------- Toast ---------- */
+let toastTimer;
+function toast(msg) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 3400);
+}
+
+/* ---------- Attach image ---------- */
+let pendingImage = null;
+
+$("fileInput").addEventListener("change", (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  if (!f.type.startsWith("image/")) { toast("Chỉ chấp nhận file ảnh."); return; }
+  if (f.size > 5 * 1024 * 1024) { toast("Ảnh tối đa 5MB."); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    pendingImage = reader.result;
+    $("attachThumb").src = pendingImage;
+    $("attachName").textContent = f.name + " (" + Math.round(f.size / 1024) + " KB)";
+    $("attachBox").style.display = "flex";
+  };
+  reader.readAsDataURL(f);
+  e.target.value = "";
+});
+function clearAttach() {
+  pendingImage = null;
+  $("attachBox").style.display = "none";
+}
+document.addEventListener("paste", (e) => {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (const it of items) {
+    if (it.type && it.type.startsWith("image/")) {
+      const f = it.getAsFile();
+      if (!f) continue;
+      if (f.size > 5 * 1024 * 1024) { toast("Ảnh tối đa 5MB."); return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        pendingImage = reader.result;
+        $("attachThumb").src = pendingImage;
+        $("attachName").textContent = "Ảnh dán (" + Math.round(f.size / 1024) + " KB)";
+        $("attachBox").style.display = "flex";
+      };
+      reader.readAsDataURL(f);
+      e.preventDefault();
+      break;
+    }
+  }
+});
+
+/* ---------- Input ---------- */
+const ta = $("input");
+ta.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    if (pickerKind) { pickSelect(pickerIdx); return; }
+    send();
+  }
+  if (pickerKind && e.key === "ArrowDown") { e.preventDefault(); pickerIdx = (pickerIdx + 1) % pickerItems.length; updatePickSel(); }
+  if (pickerKind && e.key === "ArrowUp") { e.preventDefault(); pickerIdx = (pickerIdx - 1 + pickerItems.length) % pickerItems.length; updatePickSel(); }
+  if (e.key === "Escape") hidePicker();
+});
+ta.addEventListener("input", () => {
+  ta.style.height = "auto";
+  ta.style.height = Math.min(ta.scrollHeight, 150) + "px";
+  const m = ta.value.match(/^([\/!#])([\w-]*)$/);
+  if (m) {
+    const kind = m[1], q = m[2].toLowerCase();
+    let items = [];
+    if (kind === "/") items = PLAYBOOKS.filter((p) => p.cmd.includes(q));
+    else if (kind === "!") items = (window.__agents || []).filter((a) => (a.label + " " + a.name).toLowerCase().includes(q));
+    else {
+      items = WORKFLOWS.filter((w) => w.cmd.includes(q));
+      savedFlows.filter((f) => f.name.toLowerCase().includes(q)).forEach((f) =>
+        items.push({ cmd: "#" + f.name, icon: "📋", desc: "Template đã lưu", fn: "runFlowById", fid: f.id })
+      );
+    }
+    if (items.length) showPicker(kind, items); else hidePicker();
+  } else hidePicker();
+});
+
+/* ---------- Tabs & views ---------- */
+function switchView(v) {
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
+  document.querySelector(".shell").className = "shell view-" + v;
+  if (v === "kb") loadKbDocs();
+  if (v === "tickets") loadTicketsView();
+  if (v === "flow") renderFlow();
+  if (v === "services") renderServices();
+  if (v === "errors") renderErrors();
+  if (v === "preview") initPreview();
+}
+
+/* ---------- KB view ---------- */
+let kbDocs = [];
+async function loadKbDocs() {
+  try {
+    const r = await fetch("/api/kb/docs");
+    const d = await r.json();
+    kbDocs = d.docs;
+    renderKbList($("kbSearch").value || "");
+  } catch (e) { /* im lặng */ }
+}
+function renderKbList(filter) {
+  const list = kbDocs.filter((d) => !filter || (d.title + " " + d.path).toLowerCase().includes(filter.toLowerCase()));
+  $("kbList").innerHTML = list.length
+    ? list.map((d) =>
+        '<button class="kb-item" onclick="openKbDoc(this,\'' + d.path.replace(/'/g, "\\'") + '\')">' +
+        '<div class="kb-t">' + esc(d.title) + "</div>" +
+        '<div class="kb-m">' + esc(d.category || "kb") + " · " + d.chunks + " chunks · " + d.size + "B</div></button>"
+      ).join("")
+    : '<div class="insp-empty">Không có tài liệu.</div>';
+}
+let currentKbPath = null;
+async function openKbDoc(btn, path) {
+  currentKbPath = path;
+  document.querySelectorAll(".kb-item").forEach((b) => b.classList.remove("active"));
+  btn.classList.add("active");
+  try {
+    const r = await fetch("/api/kb/docs/" + encodeURIComponent(path));
+    const d = await r.json();
+    $("kbDocTitle").textContent = d.path;
+    $("kbEditor").value = d.content;
+  } catch (e) { toast("Không đọc được tài liệu."); }
+}
+async function saveKbDoc() {
+  if (!currentKbPath) { toast("Chọn tài liệu trước."); return; }
+  try {
+    const r = await fetch("/api/kb/docs/" + encodeURIComponent(currentKbPath), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: $("kbEditor").value }),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    toast("Đã lưu. Bấm 🔄 để nạp lại KB.");
+    loadKbDocs();
+  } catch (e) { toast("Lỗi lưu: " + e.message); }
+}
+
+/* ---------- Tickets & audit view ---------- */
+async function loadTicketsView() {
+  try {
+    const [r, ar] = await Promise.all([fetch("/api/tickets"), fetch("/api/tickets/audit")]);
+    const list = await r.json();
+    const audit = await ar.json();
+    const cols = { open: [], escalated_to_l3: [], resolved: [] };
+    list.forEach((t) => (cols[t.status] || cols.open).push(t));
+    const label = { open: "OPEN", escalated_to_l3: "L3", resolved: "RESOLVED" };
+    $("tkBoard").innerHTML = Object.keys(cols).map((st) =>
+      '<div class="tk-col"><h4>' + label[st] + " (" + cols[st].length + ")</h4>" +
+      cols[st].map((t) =>
+        '<div class="tk-card"><div class="tc-t">#' + t.id + " · " + esc(t.subject) + "</div>" +
+        '<div class="tc-m">' + esc(t.level) + (t.assignee ? " · " + esc(t.assignee) : "") + " · " + esc(t.created_at.slice(0, 16).replace("T", " ")) + "</div></div>"
+      ).join("") + "</div>"
+    ).join("");
+    $("tkAuditList").innerHTML = audit.events.length
+      ? audit.events.map((e) =>
+          '<div class="audit-item"><span class="a-time">' + esc(e.created_at.slice(11, 19)) + "</span>" +
+          '<span class="a-act">#' + (e.ticket_id || "-") + " · " + esc(e.action) + "</span><span>" + esc(e.detail) + "</span></div>"
+        ).join("")
+      : '<div class="insp-empty">Chưa có hoạt động.</div>';
+  } catch (e) { /* im lặng */ }
+}
+
+/* ---------- Canvas engine (SVG drag) ---------- */
+function makeCanvas(svgEl, storeKey, initial) {
+  const pos = JSON.parse(localStorage.getItem(storeKey) || "null") || initial;
+  const nodes = [];
+  const edges = [];
+  let dragId = null, dx = 0, dy = 0, moved = false;
+  function pt(e) {
+    const r = svgEl.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  function render() {
+    let s = "";
+    edges.forEach((e) => {
+      const a = pos[e.from], b = pos[e.to];
+      if (a && b) s += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="' + (e.color || "rgba(255,255,255,.18)") + '" stroke-width="' + (e.width || 1) + '" stroke-dasharray="' + (e.dash || "") + '"/>';
+    });
+    nodes.forEach((n) => {
+      const p = pos[n.id];
+      if (!p) return;
+      s += '<g class="cn" data-id="' + n.id + '" transform="translate(' + p.x + "," + p.y + ')">';
+      s += '<circle class="node-ring" r="' + n.r + '" fill="' + n.fill + '" opacity="' + (n.opacity || .22) + '" stroke="' + n.color + '" stroke-width="1.5"/>';
+      s += '<text y="' + (-n.r - 10) + '" text-anchor="middle" fill="#e6ecf5" font-size="11" font-weight="600">' + n.label + "</text>";
+      s += '<text y="' + (n.r + 16) + '" text-anchor="middle" fill="#8fa2bd" font-size="10">' + n.sub + "</text>";
+      if (n.icon) s += '<text y="5" text-anchor="middle" font-size="20">' + n.icon + "</text>";
+      s += "</g>";
+    });
+    svgEl.innerHTML = s;
+    svgEl.querySelectorAll(".cn").forEach((g) => {
+      g.addEventListener("mousedown", (ev) => {
+        ev.preventDefault();
+        const p = pt(ev);
+        dragId = g.dataset.id;
+        moved = false;
+        dx = p.x - pos[dragId].x;
+        dy = p.y - pos[dragId].y;
+      });
+      g.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (!moved && onNodeClick) onNodeClick(g.dataset.id);
+      });
+    });
+  }
+  let onNodeClick = null;
+  svgEl.addEventListener("mousemove", (ev) => {
+    if (!dragId) return;
+    const p = pt(ev);
+    const nx = p.x - dx, ny = p.y - dy;
+    if (Math.abs(nx - pos[dragId].x) + Math.abs(ny - pos[dragId].y) > 3) moved = true;
+    pos[dragId].x = nx;
+    pos[dragId].y = ny;
+    render();
+  });
+  svgEl.addEventListener("mouseup", () => {
+    if (dragId) { localStorage.setItem(storeKey, JSON.stringify(pos)); dragId = null; }
+  });
+  svgEl.addEventListener("mouseleave", () => { dragId = null; });
+  return {
+    render,
+    addNode(n) { nodes.push(n); if (!pos[n.id]) pos[n.id] = { x: 200, y: 200 }; },
+    addEdge(e) { edges.push(e); },
+    onClick(fn) { onNodeClick = fn; },
+    getPos: () => pos,
+  };
+}
+
+/* ---------- Services canvas ---------- */
+async function renderServices() {
+  try {
+    const r = await fetch("/api/services");
+    const d = await r.json();
+    const colors = { Platform: "#9ec1f0", Finance: "#6fd3a8", Inference: "#ff92a4", Compute: "#e6c07a", Storage: "#c9a6f0" };
+    $("svcLegend").innerHTML = d.categories.map((c) => '<span><i style="background:' + colors[c] + '"></i>' + c + "</span>").join("");
+    const box = $("svcCanvasBox");
+    const W = box.clientWidth || 900, H = box.clientHeight || 560;
+    const n = d.services.length, R = Math.min(W, H) / 2 - 110, cx = W / 2, cy = H / 2;
+    const initial = { fpt: { x: cx, y: cy } };
+    d.services.forEach((s, i) => {
+      const ang = (i / n) * 2 * Math.PI - Math.PI / 2;
+      initial["svc-" + s.key] = { x: cx + R * Math.cos(ang), y: cy + R * Math.sin(ang) };
+    });
+    const cv = makeCanvas($("svcCanvas"), "vf-canvas-services", initial);
+    cv.addNode({ id: "fpt", label: "FPT AI Factory", sub: "", icon: "🏭", r: 46, fill: "#e4002b", color: "#e4002b", opacity: .9 });
+    d.services.forEach((s, i) => {
+      const ang = (i / n) * 2 * Math.PI - Math.PI / 2;
+      const id = "svc-" + s.key;
+      cv.addNode({ id, label: s.name, sub: s.owner, icon: "", r: 26, fill: colors[s.category], color: colors[s.category] });
+      cv.addEdge({ from: "fpt", to: id, color: "rgba(255,255,255,.15)" });
+      (s.depends_on || []).forEach((dep) => cv.addEdge({ from: id, to: "svc-" + dep, color: "rgba(230,192,122,.5)", width: 1.5, dash: "4,3" }));
+    });
+    cv.onClick((id) => {
+      if (id === "fpt") return;
+      const s = d.services.find((x) => "svc-" + x.key === id);
+      if (!s) return;
+      const agentName = d.service_to_agent[s.key];
+      const agent = (window.__agents || []).find((a) => a.name === agentName);
+      $("svcDetail").innerHTML =
+        '<h3>' + esc(s.name) + "</h3>" +
+        '<div class="dp-sub">' + esc(s.category) + " · Kỹ thuật viên " + esc(s.owner) + "</div>" +
+        '<div class="dp-k">Mô tả</div><div class="dp-v">' + esc(s.desc) + "</div>" +
+        (s.depends_on && s.depends_on.length ? '<div class="dp-k">Phụ thuộc</div><div class="dp-v">' + esc(s.depends_on.join(", ")) + "</div>" : "") +
+        '<div class="dp-action"><button class="btn btn-primary" style="padding:7px 12px;font-size:12px" onclick="askServiceAgent(\'' + s.key + "','" + esc(s.name) + "')\">🤖 Hỏi agent</button>" +
+        '<button class="btn btn-ghost" style="padding:7px 12px;font-size:12px" onclick="closeDetail(\'svcDetail\')">Đóng</button></div>';
+      $("svcDetail").style.display = "block";
+    });
+    cv.render();
+  } catch (e) { /* im lặng */ }
+}
+function askServiceAgent(key, name) {
+  const agentName = { portal: "portal", billing: "billing", voucher: "billing", serverless: "gpu", dedicated: "dedicated-inference", "gpu-vm": "gpu", "gpu-container": "gpu", metal: "gpu", "network-volume": "network", "gpu-cluster": "gpu" }[key];
+  currentAgent = (window.__agents || []).find((a) => a.name === agentName) || null;
+  renderAgentChip();
+  switchView("chat");
+  $("input").value = "Khách hàng gặp vấn đề với dịch vụ " + name + ". Hãy hỗ trợ xử lý.";
+  send();
+}
+
+/* ---------- Errors canvas ---------- */
+async function renderErrors() {
+  try {
+    const r = await fetch("/api/errors");
+    const d = await r.json();
+    const colors = { cause: "#ff92a4", related: "#9ec1f0", symptom: "#e6c07a" };
+    $("errLegend").innerHTML = Object.keys(colors).map((k) => '<span><i style="background:' + colors[k] + '"></i>' + k + "</span>").join("");
+    const box = $("errCanvasBox");
+    const W = box.clientWidth || 900, H = box.clientHeight || 560;
+    const n = d.errors.length, R = Math.min(W, H) / 2 - 110, cx = W / 2, cy = H / 2;
+    const initial = {};
+    d.errors.forEach((e, i) => {
+      const ang = (i / n) * 2 * Math.PI - Math.PI / 2;
+      initial["err-" + e.code] = { x: cx + R * Math.cos(ang), y: cy + R * Math.sin(ang) };
+    });
+    const cv = makeCanvas($("errCanvas"), "vf-canvas-errors", initial);
+    d.errors.forEach((e, i) => {
+      const ang = (i / n) * 2 * Math.PI - Math.PI / 2;
+      const id = "err-" + e.code;
+      cv.addNode({ id, label: e.code + " " + e.name, sub: e.service, icon: e.icon, r: 34, fill: colors[e.relation], color: colors[e.relation] });
+    });
+    d.errors.forEach((e) => {
+      (e.related || []).forEach((rel) => {
+        if (d.errors.find((x) => x.code === rel)) {
+          cv.addEdge({ from: "err-" + e.code, to: "err-" + rel, color: colors[e.relation], width: 1.5 });
+        }
+      });
+    });
+    cv.onClick((id) => {
+      const e = d.errors.find((x) => "err-" + x.code === id);
+      if (!e) return;
+      $("errDetail").innerHTML =
+        '<h3>' + e.icon + " " + esc(e.name) + "</h3>" +
+        '<div class="dp-sub">Mã lỗi ' + esc(e.code) + " · Dịch vụ " + esc(e.service) + "</div>" +
+        '<div class="dp-k">Triệu chứng</div><div class="dp-v">' + esc(e.symptoms) + "</div>" +
+        '<div class="dp-k">Nguyên nhân</div><ul>' + e.causes.map((c) => "<li>• " + esc(c) + "</li>").join("") + "</ul>" +
+        '<div class="dp-k">Liên quan</div><div class="dp-rel">' +
+        (e.related || []).map((rel) => '<button onclick="jumpError(\'' + rel + '\')">' + esc(rel) + "</button>").join("") +
+        "</div>" +
+        '<div class="dp-action"><button class="btn btn-primary" style="padding:7px 12px;font-size:12px" onclick="runPlaybook(\'' + esc(e.playbook) + '\')">▶ ' + esc(e.playbook) + "</button>" +
+        '<button class="btn btn-ghost" style="padding:7px 12px;font-size:12px" onclick="closeDetail(\'errDetail\')">Đóng</button></div>';
+      $("errDetail").style.display = "block";
+    });
+    cv.render();
+  } catch (e) { /* im lặng */ }
+}
+function jumpError(code) {
+  closeDetail("errDetail");
+  const el = document.querySelector('[data-id="err-' + code + '"]');
+  if (el) el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+function runPlaybook(cmd) {
+  closeDetail("errDetail");
+  const pb = PLAYBOOKS.find((p) => p.cmd === cmd);
+  switchView("chat");
+  $("input").value = pb ? pb.q : "Khách hàng gặp lỗi này. Xử lý sao?";
+  send();
+}
+function closeDetail(id) { $(id).style.display = "none"; }
+
+/* ---------- Flow canvas ---------- */
+const FLOW_NODES = [
+  { id: "l1", label: "L1 · Tiếp nhận", sub: "Servicedesk", icon: "📞", r: 34, fill: "#9ec1f0", color: "#9ec1f0" },
+  { id: "l2", label: "L2 · Vận hành", sub: "KB + Agent", icon: "🤖", r: 34, fill: "#6fd3a8", color: "#6fd3a8" },
+  { id: "l3", label: "L3 · Chuyên sâu", sub: "Kỹ thuật viên", icon: "🔧", r: 34, fill: "#ff92a4", color: "#ff92a4" },
+];
+const FLOW_EDGES = [{ from: "l1", to: "l2" }, { from: "l2", to: "l3" }];
+let flowCanvas = null;
+async function renderFlow() {
+  const box = $("flowCanvasBox");
+  const W = box.clientWidth || 900, H = box.clientHeight || 560;
+  flowCanvas = makeCanvas($("flowCanvas"), "vf-canvas-flow", { l1: { x: W * .2, y: H / 2 }, l2: { x: W * .5, y: H / 2 }, l3: { x: W * .8, y: H / 2 } });
+  FLOW_NODES.forEach((n) => flowCanvas.addNode(n));
+  FLOW_EDGES.forEach((e) => flowCanvas.addEdge({ from: e.from, to: e.to, color: "rgba(255,255,255,.3)", width: 2 }));
+  flowCanvas.render();
+  loadFlows();
+}
+async function loadFlows() {
+  try {
+    const r = await fetch("/api/flows");
+    const list = await r.json();
+    $("flowList").innerHTML = '<h4>Template đã lưu</h4>' +
+      (list.length ? list.map((f) =>
+        '<div class="flow-item"><span class="fi-name">' + esc(f.name) + "</span>" +
+        '<button class="fi-run" onclick="runFlow(' + f.id + ')">Chạy</button>' +
+        '<button class="fi-del" onclick="delFlow(' + f.id + ')">✕</button></div>'
+      ).join("") : '<div class="flow-item" style="color:var(--chat-muted)">Chưa có template.</div>');
+  } catch (e) { /* im lặng */ }
+}
+async function saveFlow() {
+  const name = $("flowName").value.trim();
+  if (!name) { toast("Nhập tên template."); return; }
+  const data = { nodes: FLOW_NODES, edges: FLOW_EDGES, pos: flowCanvas ? flowCanvas.getPos() : {} };
+  try {
+    const r = await fetch("/api/flows", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, data }),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    toast("Đã lưu template '" + name + "'. Chạy từ # trong Chat.");
+    $("flowName").value = "";
+    loadFlows();
+    loadSavedFlows();
+  } catch (e) { toast("Lỗi lưu: " + e.message); }
+}
+async function delFlow(id) {
+  try {
+    await fetch("/api/flows/" + id, { method: "DELETE" });
+    loadFlows();
+  } catch (e) { /* im lặng */ }
+}
+function runFlow(id) {
+  openRail();
+  toast("Đang chạy flow — mở form escalate.");
+}
+
+/* ---------- Preview view ---------- */
+function initPreview() {
+  const f = $("previewFrame");
+  if (!f.getAttribute("src")) f.src = "/?embed=1";
+}
+
+/* ---------- Pillars / ! # ---------- */
+let currentAgent = null;
+window.__agents = [];
+const PLAYBOOKS = [
+  { cmd: "/403-error", icon: "🚫", desc: "Xử lý lỗi 403 / Cloudflare 1010", q: "Khách hàng gặp lỗi 403 Forbidden error code 1010 khi gọi API. Xử lý sao?" },
+  { cmd: "/401-error", icon: "🔑", desc: "Xử lý lỗi 401 Unauthorized", q: "Khách hàng gặp lỗi 401 Unauthorized khi gọi API. Xử lý sao?" },
+  { cmd: "/429-error", icon: "⏳", desc: "Xử lý lỗi 429 / quota exceeded", q: "Khách hàng gặp lỗi 429 rate limit hoặc quota exceeded. Xử lý sao?" },
+  { cmd: "/503-error", icon: "🔧", desc: "Xử lý lỗi 503 Service Unavailable", q: "Khách hàng gặp lỗi 503 Service Unavailable khi gọi inference. Xử lý sao?" },
+  { cmd: "/timeout-error", icon: "⏱️", desc: "Xử lý lỗi timeout", q: "Khách hàng gặp lỗi timeout khi gọi API. Xử lý sao?" },
+  { cmd: "/billing-check", icon: "💰", desc: "Kiểm tra hóa đơn / hạn mức", q: "Khách hàng hỏi về hóa đơn, thanh toán hoặc hạn mức tài khoản." },
+  { cmd: "/register-service", icon: "📝", desc: "Hướng dẫn đăng ký dịch vụ", q: "Làm sao đăng ký sử dụng dịch vụ?" },
+  { cmd: "/sla", icon: "⏱️", desc: "Tra cứu SLA dịch vụ", q: "SLA của dịch vụ là gì?" },
+  { cmd: "/price-dedicated", icon: "💵", desc: "Giá Dedicated Inference", q: "Liệt kê giá các gói Dedicated Inference" },
+];
+const WORKFLOWS = [
+  { cmd: "#create-ticket", icon: "🎫", desc: "Mở form tạo ticket", fn: "openRail" },
+  { cmd: "#escalate", icon: "🔺", desc: "Escalate lên L3", fn: "openRail" },
+  { cmd: "#check-billing", icon: "💰", desc: "Hỏi agent Billing", fn: "askBilling" },
+];
+let pickerKind = null, pickerItems = [], pickerIdx = 0;
+let savedFlows = [];
+async function loadSavedFlows() {
+  try {
+    const r = await fetch("/api/flows");
+    savedFlows = await r.json();
+  } catch (e) { savedFlows = []; }
+}
+function showPicker(kind, items) {
+  pickerKind = kind; pickerItems = items; pickerIdx = 0;
+  const head = kind === "/" ? "Playbook" : kind === "!" ? "Agent chuyên trách" : "Workflow";
+  $("pillarPicker").innerHTML = '<div class="pk-head">' + head + "</div>" +
+    items.map((it, i) =>
+      '<button data-i="' + i + '" class="' + (i === 0 ? "sel" : "") + '">' +
+      '<span class="pk-icon">' + (it.icon || kind) + "</span>" +
+      "<span><span class=\"pk-name\">" + esc(it.cmd || it.label) + "</span><br><span class=\"pk-desc\">" + esc(it.desc) + "</span></span></button>"
+    ).join("");
+  $("pillarPicker").style.display = "block";
+  $("pillarPicker").querySelectorAll("button").forEach((b) => (b.onclick = () => pickSelect(+b.dataset.i)));
+}
+function hidePicker() { $("pillarPicker").style.display = "none"; pickerKind = null; }
+function updatePickSel() {
+  document.querySelectorAll("#pillarPicker button").forEach((b, i) => b.classList.toggle("sel", i === pickerIdx));
+}
+function pickSelect(i) {
+  const it = pickerItems[i];
+  const kind = pickerKind;
+  hidePicker();
+  const input = $("input");
+  if (kind === "/") { input.value = it.q; send(); }
+  else if (kind === "#") { if (it.fn === "runFlowById") runFlowById(it.fid); else window[it.fn](); }
+  else if (kind === "!") { currentAgent = it; renderAgentChip(); }
+}
+function runFlowById(id) {
+  openRail();
+  toast("Đang chạy flow — mở form escalate.");
+}
+function renderAgentChip() {
+  const box = $("agentChipBox");
+  if (currentAgent) {
+    box.style.display = "flex";
+    box.innerHTML = '<span class="agent-chip">' + currentAgent.icon + " " + esc(currentAgent.label) + ' <button onclick="clearAgent()">✕</button></span>';
+  } else box.style.display = "none";
+}
+function clearAgent() { currentAgent = null; renderAgentChip(); }
+function askBilling() {
+  currentAgent = (window.__agents || []).find((a) => a.name === "billing") || null;
+  renderAgentChip();
+  $("input").value = "Khách hàng hỏi về hóa đơn, thanh toán hoặc hạn mức tài khoản.";
+  send();
+}
+async function loadAgents() {
+  try {
+    const r = await fetch("/api/agents");
+    const d = await r.json();
+    window.__agents = d.agents;
+  } catch (e) { window.__agents = []; }
+}
+
+/* ---------- Panel toggles ---------- */
+function togglePanel(side) {
+  const shell = document.querySelector(".shell");
+  const cls = side === "left" ? "no-left" : "no-right";
+  shell.classList.toggle(cls);
+  localStorage.setItem("vf-" + cls, shell.classList.contains(cls) ? "1" : "0");
+  const btn = side === "left" ? $("toggleLeft") : $("toggleRight");
+  btn.classList.toggle("active", shell.classList.contains(cls));
+}
+function initPanels() {
+  const shell = document.querySelector(".shell");
+  if (localStorage.getItem("vf-no-left") === "1") { shell.classList.add("no-left"); $("toggleLeft").classList.add("active"); }
+  if (localStorage.getItem("vf-no-right") === "1") { shell.classList.add("no-right"); $("toggleRight").classList.add("active"); }
+}
+
+/* ---------- Init ---------- */
+if (location.search.includes("embed=1")) document.body.classList.add("embed");
+initPanels();
+loadHealth();
+loadTickets();
+loadAssignees();
+loadModels();
+loadAgents();
+loadSavedFlows();
+toggleAssigneeField();
+ta.focus();
+</script>
+</body>
+</html>
